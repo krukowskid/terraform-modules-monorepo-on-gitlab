@@ -1,0 +1,97 @@
+variables:
+  TERRAFORM_VERSION: '1.9.4'
+  REPOSITORY_ACCESS_TOKEN: $TerraformModulesAccessToken
+  MINIMUM_NUMBER_OF_APPROVALS: 1 # This should be set to zero if using Premium or Ultimate
+  GIT_DEPTH: 0
+  GIT_STRATEGY: clone
+
+stages:
+  - detect
+  - check
+  - release
+
+.init: &init
+  before_script:
+    - apt-get update && apt-get install -y git tar wget
+    - git remote set-url origin "https://gitlab-ci-token:${REPOSITORY_ACCESS_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+    - git config --global user.name "${GITLAB_USER_NAME}"
+
+detect:
+  stage: detect
+  image: mcr.microsoft.com/powershell:lts-7.2-ubuntu-22.04
+  <<: *init
+  script:
+    - pwsh -File ./.gitlab/detect.ps1 -AccessToken "${REPOSITORY_ACCESS_TOKEN}"
+  rules:
+  - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  artifacts:
+    reports:
+      dotenv: variables.env
+
+generate-pipeline:
+  stage: check
+  image: mcr.microsoft.com/powershell:lts-7.2-ubuntu-22.04
+  script:
+    - pwsh -File ./.gitlab/check.ps1 -TerraformVersion ${TERRAFORM_VERSION} -Modules $modules
+  rules:
+  - if: $CI_MERGE_REQUEST_LABELS =~ /major|minor|patch/
+  artifacts:
+    paths:
+      - check.yml   
+ 
+check:
+  stage: check
+  needs: 
+    - generate-pipeline
+  trigger:
+    forward:
+      pipeline_variables: true
+    include:
+      - artifact: check.yml
+        job: generate-pipeline
+    strategy: depend
+  rules:
+  - if: $CI_MERGE_REQUEST_LABELS =~ /major|minor|patch/
+
+approval-gate:
+  stage: check
+  image: mcr.microsoft.com/powershell:lts-7.2-ubuntu-22.04
+  script:
+    - pwsh -File ./.gitlab/approval-gate.ps1 -AccessToken "${REPOSITORY_ACCESS_TOKEN}" -MinimumNumberOfApprovals ${MINIMUM_NUMBER_OF_APPROVALS}
+  rules:
+  - if: $MINIMUM_NUMBER_OF_APPROVALS == '0'
+    when: never
+  - if: $CI_MERGE_REQUEST_LABELS =~ /major|minor|patch|no-release/
+
+release:
+  stage: release
+  image: mcr.microsoft.com/powershell:lts-7.2-ubuntu-22.04
+  <<: *init
+  script:
+    - apt-get update && apt-get install -y git
+    - pwsh -File ./.gitlab/release.ps1 -Releases "$releases"
+                                       -MergeRequestId "$mergeRequestId"
+                                       -MergeRequestTitle "$mergeRequestTitle"
+                                       -ChangelogEntry "$changelogEntry"
+                                       -Label "$label"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+wiki:
+  stage: release
+  image: mcr.microsoft.com/powershell:lts-7.2-ubuntu-22.04
+  <<: *init
+  script:
+      - git clone "https://gitlab-ci-token:${REPOSITORY_ACCESS_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.wiki.git"
+      - wget https://github.com/terraform-docs/terraform-docs/releases/download/v0.15.0/terraform-docs-v0.15.0-linux-amd64.tar.gz 
+          --output-document - 
+          --progress dot:mega | tar -xvz
+      - pwsh -File ./.gitlab/wiki.ps1 -Releases "$releases"
+                                       -MergeRequestId "$mergeRequestId"
+                                       -MergeRequestTitle "$mergeRequestTitle"
+                                       -ChangelogEntry "$changelogEntry"
+                                       -Label "$label"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
