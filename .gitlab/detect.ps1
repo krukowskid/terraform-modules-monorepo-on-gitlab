@@ -167,13 +167,13 @@ $changelogEntry
             catch {}
         }
 
-            $mrLabels = @{"labels" = @($label, $changedModules) -join ','} | ConvertTo-Json
-            Invoke-RestMethod -Uri "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/merge_requests/$mergeRequestId" `
-                                -Method PUT `
-                                -Headers $headers `
-                                -Body $mrLabels `
-                                -ContentType "application/json" `
-                                -ErrorAction "SilentlyContinue"
+        $mrLabels = @{"labels" = (@($label) + $changedModules) -join ','} | ConvertTo-Json
+        Invoke-RestMethod -Uri "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/merge_requests/$mergeRequestId" `
+                            -Method PUT `
+                            -Headers $headers `
+                            -Body $mrLabels `
+                            -ContentType "application/json" `
+                            -ErrorAction "SilentlyContinue"
 
         $body = @{
             body = $content
@@ -199,7 +199,6 @@ $changelogEntry
         }
     }
 }
-
 Write-Output "changelogEntry=$changelogEntry" | Out-File -FilePath variables.env -Encoding utf8 -Append
 Write-Output "mergeRequestTitle=$($mrDetails.title)" | Out-File -FilePath variables.env -Encoding utf8 -Append
 Write-Output "mergeRequestId=$mergeRequestId" | Out-File -FilePath variables.env -Encoding utf8 -Append

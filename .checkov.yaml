@@ -1,0 +1,6 @@
+# Skip check CKV_TF_1 because it is not relevant for our use case 
+# where we use semantic versioning for Terraform modules with git tags
+skip-check: CKV_TF_1
+skip-path: ./examples
+download-external-modules: true
+quiet: true

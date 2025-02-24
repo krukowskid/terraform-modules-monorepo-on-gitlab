@@ -14,6 +14,7 @@ stages:
   before_script:
     - apt-get update && apt-get install -y git tar wget
     - git remote set-url origin "https://gitlab-ci-token:${REPOSITORY_ACCESS_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git config --global url."https://gitlab-ci-token:${REPOSITORY_ACCESS_TOKEN}@${CI_SERVER_HOST}".insteadOf "https://${CI_SERVER_HOST}"
     - git config --global user.email "${GITLAB_USER_EMAIL}"
     - git config --global user.name "${GITLAB_USER_NAME}"
 
@@ -34,7 +35,7 @@ generate-pipeline:
   stage: check
   image: mcr.microsoft.com/powershell:lts-7.2-ubuntu-22.04
   script:
-    - pwsh -File ./.gitlab/check.ps1 -TerraformVersion ${TERRAFORM_VERSION} -Modules $modules
+    - pwsh -File ./.gitlab/check.ps1 -TerraformVersion "${TERRAFORM_VERSION}" $modules
   rules:
   - if: $CI_MERGE_REQUEST_LABELS =~ /major|minor|patch/
   artifacts:
