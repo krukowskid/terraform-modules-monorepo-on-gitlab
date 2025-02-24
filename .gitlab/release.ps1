@@ -32,7 +32,7 @@ $payload.releases | ForEach-Object {
 
     git checkout "$($payload.sha)"
     
-    Write-Output "module: $module"
+    write-host "module: $module"
 
     Copy-Item -Path $module `
             -Destination "./_workingtmp/" `
@@ -63,6 +63,7 @@ $payload.releases | ForEach-Object {
     git rm ".gitignore"
     git rm ".gitlab-ci.yml"
     git rm ".tflint.hcl"
+    git rm ".checkov.yaml"
 
     git add .
     git commit -a -m "$message" -m "$description"
